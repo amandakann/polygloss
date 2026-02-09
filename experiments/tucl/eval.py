@@ -4,12 +4,16 @@ import pandas as pd
 
 import wandb
 from data.model import load_igt
-from data.scrape_data import evaluation_isocodes, evaluation_languages
+# from data.scrape_data import evaluation_isocodes, evaluation_languages
 from src.evaluation.evaluate import evaluate
 
-wandb.init(project="polygloss", entity="lecs-general", name="TU-CL")
+wandb.init(project="typgloss", entity="amanda-kann-stockholm-university", name="TU-CL")
 
 all_preds = []
+evaluation_languages = [
+    "Ainu"]
+evaluation_isocodes = [
+    "ain"]
 
 for glotto, iso in zip(evaluation_languages, evaluation_isocodes):
     try:
