@@ -45,16 +45,16 @@ def run(
     if distributed_parameters["rank"] == 0:
         if config.resume_from_checkpoint_id:
             wandb.init(
-                project="polygloss",
-                entity="lecs-general",
+                project="typgloss",
+                entity="amanda-kann-stockholm-university",
                 config=asdict(config),
                 id=config.resume_from_checkpoint_id,
                 resume="must",
             )
         else:
             wandb.init(
-                project="polygloss",
-                entity="lecs-general",
+                project="typgloss",
+                entity="amanda-kann-stockholm-university",
                 config=asdict(config),
             )
 
