@@ -42,6 +42,10 @@ class ExperimentConfig:
     dataset_key: str = "lecslab/polygloss-corpus"
     """Hugging Face dataset identifier for the corpus to use"""
 
+    local_dataset_path: str | None = None
+    """Path to a local directory with split subdirectories (train/, dev/, test/) of CSV data files.
+    If specified, takes precedence over dataset_key"""
+
     glottocode: str | None = None
     """Glottocode of the language to finetune on (None for pretraining on all languages)"""
 

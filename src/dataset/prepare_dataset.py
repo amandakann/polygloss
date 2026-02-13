@@ -36,6 +36,27 @@ supported_decoder_models = ["qwen3", "cohere"]
 InputKey = typing.Literal["transcription", "segmentation"]
 OutputKey = typing.Literal["segmentation", "glosses"]
 
+def _load_local_dataset(path: str) -> datasets.DatasetDict:
+    """Loads a local dataset from CSV files in split subdirectories (train/, dev/, test/)."""
+    path = Path(path)
+    
+    if not path.is_dir():
+        raise FileNotFoundError(f"Dataset path not found: {path}")
+    
+    data_files = {}
+    for split_name in ["train", "dev", "test"]:
+        split_dir = path / split_name
+        if split_dir.is_dir():
+            csv_files = sorted(split_dir.glob("*.csv"))
+            if csv_files:
+                data_files[split_name] = [str(f) for f in csv_files]
+            else:
+                logger.warning(f"No CSV files in {split_dir}")
+    
+    if not data_files:
+        raise ValueError(f"No CSV files found in train/, dev/, or test/ subdirectories under {path}")
+    
+    return datasets.load_dataset("csv", data_files=data_files)
 
 def create_dataset(
     tokenizer: PreTrainedTokenizerBase,
@@ -47,7 +68,11 @@ def create_dataset(
         tokenizer (transformers.AutoTokenizer): The pretrained tokenizer
         config (ExperimentConfig): The experiment configuration
     """
-    dataset = datasets.load_dataset(config.dataset_key)
+    # Load dataset from local CSV or HuggingFace Hub
+    if config.local_dataset_path:
+        dataset = _load_local_dataset(config.local_dataset_path)
+    else:
+        dataset = datasets.load_dataset(config.dataset_key)
 
     dataset = cast(datasets.DatasetDict, dataset)
     dataset = _filter(dataset, config.glottocode)
