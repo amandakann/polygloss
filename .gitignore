@@ -16,3 +16,4 @@ enora's junk/
 pip_freeze.txt
 viz
 artifacts
+data/raw/*
