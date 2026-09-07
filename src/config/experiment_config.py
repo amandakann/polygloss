@@ -49,6 +49,9 @@ class ExperimentConfig:
     glottocode: str | None = None
     """Glottocode of the language to finetune on (None for pretraining on all languages)"""
 
+    language_mask: str | None = None
+    """Common name of a language. If specified, will mask the actual language in prompts."""
+
     task_format: TASK_FORMAT = "multitask"
     """Format for the joint seg/glossing"""
 

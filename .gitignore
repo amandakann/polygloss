@@ -17,3 +17,7 @@ pip_freeze.txt
 viz
 artifacts
 data/raw/*
+
+# model files
+experiments/*/*/*.model
+
