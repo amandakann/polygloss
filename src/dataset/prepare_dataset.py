@@ -24,7 +24,7 @@ from transformers.models.auto.configuration_auto import AutoConfig
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 
 from data.model import boundary_pattern
-from src.config.experiment_config import MODEL_TYPE
+from src.config.experiment_config import MODEL_TYPE, NO_TRANSLATION
 from src.distributed import DistributedParameters
 from src.train import ExperimentConfig
 from src.util.collator import FlexibleCollatorWithPadding, FlexibleSeq2SeqCollator
@@ -58,6 +58,44 @@ def _load_local_dataset(path: str) -> datasets.DatasetDict:
     
     return datasets.load_dataset("csv", data_files=data_files)
 
+
+def _check_translation_condition(dataset: datasets.DatasetDict, config: ExperimentConfig):
+    """Verifies the columns for the active translation condition exist and are populated.
+
+    Without this, a misspelled or empty condition column falls through to the "no translation"
+    fallback for every row, silently producing a duplicate of the base condition.
+    """
+    if not config.translation_condition or config.translation_condition == NO_TRANSLATION:
+        return
+    col = f"translation_{config.translation_condition}"
+    metalang_col = f"metalanguage_{config.translation_condition}"
+    for split in dataset:
+        if col not in dataset[split].column_names:
+            raise ValueError(
+                f"Column {col!r} (translation_condition={config.translation_condition!r}) "
+                f"not found in split {split!r}. Available: {dataset[split].column_names}"
+            )
+        if metalang_col not in dataset[split].column_names:
+            raise ValueError(
+                f"Column {metalang_col!r} not found in split {split!r}. Without it, prompts "
+                f"would read 'Translation in an unknown language:'. "
+                f"Available: {dataset[split].column_names}"
+            )
+        n_rows = dataset[split].num_rows
+        n_filled = sum(1 for t in dataset[split][col] if t and t.strip())
+        logger.info(f"Split '{split}': {n_filled}/{n_rows} rows have {col}")
+        if n_filled == 0:
+            raise ValueError(f"Column {col!r} is empty for every row in split {split!r}")
+        if n_filled < n_rows:
+            # Rows with no translation fall back to "Translation in English: None", so uneven
+            # coverage across conditions confounds the comparison between them
+            logger.warning(
+                f"Column {col!r} is missing for {n_rows - n_filled}/{n_rows} rows in split "
+                f"{split!r}; those rows get the no-translation prompt. Conditions are only "
+                f"comparable if coverage matches across them."
+            )
+
+
 def create_dataset(
     tokenizer: PreTrainedTokenizerBase,
     config: ExperimentConfig,
@@ -76,6 +114,7 @@ def create_dataset(
 
     dataset = cast(datasets.DatasetDict, dataset)
     dataset = _filter(dataset, config.glottocode)
+    _check_translation_condition(dataset, config)
     inputs_dataset = datasets.DatasetDict()
 
     if "glosslm" in config.pretrained_model:
@@ -452,13 +491,18 @@ def _prepare_prompt_fields(row: typing.Mapping, config: ExperimentConfig):
             if row["language"] == "" or not row["language"]
             else row["language"]
         )
-    if (
-        row["translation"]
-        and len(row["translation"].strip()) > 0
-        and row["translation"] != "Unknown"
-    ):
-        translation = " ".join((row["translation"]).split())
-        metalang = row["metalanguage"] or "an unknown language"
+    if config.translation_condition == NO_TRANSLATION:
+        translation, metalang = None, None
+    elif config.translation_condition:
+        translation = row.get(f"translation_{config.translation_condition}")
+        metalang = row.get(f"metalanguage_{config.translation_condition}")
+    else:
+        translation = row["translation"]
+        metalang = row["metalanguage"]
+
+    if translation and len(translation.strip()) > 0 and translation != "Unknown":
+        translation = " ".join(translation.split())
+        metalang = metalang or "an unknown language"
     else:
         translation = "None"
         metalang = "English"

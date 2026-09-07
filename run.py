@@ -59,13 +59,12 @@ def run(
             )
 
         # Log some other useful info
-        api = HfApi()
-        wandb.config.update(
-            {
-                "dataset.sha": api.dataset_info(config.dataset_key).sha,
-                "python_version": sys.version,
-            }
-        )
+        if config.local_dataset_path:
+            dataset_info = {"dataset.local_path": config.local_dataset_path}
+        else:
+            api = HfApi()
+            dataset_info = {"dataset.sha": api.dataset_info(config.dataset_key).sha}
+        wandb.config.update({**dataset_info, "python_version": sys.version})
         log_pip_freeze_artifact(f"pip-freeze-{wandb.run.id}")  # type:ignore
 
     if config.models_dir:
@@ -73,11 +72,15 @@ def run(
     else:
         models_folder = experiment_folder
 
+    # Create subfolders for each condition/language if needed, so parallel runs of the same
+    # config don't overwrite each other's metrics
+    if config.translation_condition is not None:
+        experiment_folder /= config.translation_condition
+        models_folder /= config.translation_condition
     if config.glottocode is not None:
-        # Create subfolders for each language if needed
         experiment_folder /= config.glottocode
-        experiment_folder.mkdir(exist_ok=True)
         models_folder /= config.glottocode
+    experiment_folder.mkdir(exist_ok=True, parents=True)
     models_folder.mkdir(exist_ok=True, parents=True)
 
     # Prepare model, dataset, tokenizer

@@ -8,6 +8,10 @@ TASK_FORMAT = Literal[
     "multitask", "concatenated", "interleaved", "gloss-only", "segment-only"
 ]  # Format for glossing/segmentation task
 
+NO_TRANSLATION = "no_translation"
+"""Value of `translation_condition` that withholds the translation from prompts.
+Distinct from `translation_condition=None`, which uses the `translation` column as usual."""
+
 _glotto_to_iso = {
     "arap1274": "arp",
     "gitx1241": "git",
@@ -51,6 +55,13 @@ class ExperimentConfig:
 
     language_mask: str | None = None
     """Common name of a language. If specified, will mask the actual language in prompts."""
+
+    translation_condition: str | None = None
+    """Which metalanguage translation to place in prompts.
+    Unset (default): use the `translation`/`metalanguage` columns (pre-experiment behaviour).
+    "no_translation": withhold the translation, giving the pretraining fallback
+        `Translation in English: None`.
+    Any other value X: read the `translation_X` and `metalanguage_X` columns."""
 
     task_format: TASK_FORMAT = "multitask"
     """Format for the joint seg/glossing"""
