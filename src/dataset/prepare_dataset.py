@@ -100,7 +100,7 @@ def create_dataset(
         skipped = 0
         for row in tqdm(dataset[split], f"Creating examples for {split}"):
             row = typing.cast(typing.Mapping, row)
-            fields = _prepare_prompt_fields(row)
+            fields = _prepare_prompt_fields(row, config)
 
             if config.task_format == "gloss-only":
                 if "glosslm" in config.pretrained_model:
@@ -436,7 +436,7 @@ def _make_causal_tokenizer_with_chat_template(
     return _tokenize
 
 
-def _prepare_prompt_fields(row: typing.Mapping):
+def _prepare_prompt_fields(row: typing.Mapping, config: ExperimentConfig):
     """Given a row from the dataset, prepares the fields for the prompts"""
     transcription = " ".join((row["transcription"]).split())
     glosses = " ".join((row["glosses"]).split())
@@ -444,11 +444,14 @@ def _prepare_prompt_fields(row: typing.Mapping):
         segmentation = " ".join((row["segmentation"]).split())
     else:
         segmentation = None
-    lang = (
-        "an unknown language"
-        if row["language"] == "" or not row["language"]
-        else row["language"]
-    )
+    if config.language_mask:
+        lang = config.language_mask
+    else:
+        lang = (
+            "an unknown language"
+            if row["language"] == "" or not row["language"]
+            else row["language"]
+        )
     if (
         row["translation"]
         and len(row["translation"].strip()) > 0

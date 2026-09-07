@@ -16,3 +16,6 @@ enora's junk/
 pip_freeze.txt
 viz
 artifacts
+
+# model files
+experiments/*/*/*.model
