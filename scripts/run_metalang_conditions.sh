@@ -6,10 +6,7 @@ set -euo pipefail
 config="experiments/polygloss_metalang/eval.cfg"
 glottocode=gawa1247
 
-# TODO: rename these to match how each translation was actually produced.
-# `no_translation` is the base condition and must stay as-is; the rest must match the
-# `translation_<cond>` / `metalanguage_<cond>` column names in the CSVs.
-conditions=(no_translation en_orig en_literal en_llm ur)
+conditions=(no_translation gls_en gls_ur lit_en gtr_en)
 
 for cond in "${conditions[@]}"
 do
