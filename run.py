@@ -34,6 +34,17 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def build_run_name(config: ExperimentConfig, experiment_folder: pathlib.Path) -> str:
+    parts = [experiment_folder.stem, config.mode]
+    if config.translation_condition is not None:
+        parts.append(config.translation_condition)
+    if config.language_mask is not None:
+        parts.append(f"mask-{config.language_mask}")
+    if config.glottocode is not None:
+        parts.append(config.glottocode)
+    return "-".join(parts)
+
+
 def run(
     config: ExperimentConfig,
     experiment_folder: pathlib.Path,
@@ -56,6 +67,7 @@ def run(
                 project="typgloss",
                 entity="amanda-kann-stockholm-university",
                 config=asdict(config),
+                name=build_run_name(config, experiment_folder),
             )
 
         # Log some other useful info
