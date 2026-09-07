@@ -36,6 +36,8 @@ logger = logging.getLogger(__name__)
 
 def build_run_name(config: ExperimentConfig, experiment_folder: pathlib.Path) -> str:
     parts = [experiment_folder.stem, config.mode]
+    if config.local_dataset_path is not None:
+        parts.append(pathlib.Path(config.local_dataset_path).name)
     if config.translation_condition is not None:
         parts.append(config.translation_condition)
     if config.language_mask is not None:
