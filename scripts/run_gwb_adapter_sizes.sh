@@ -4,7 +4,7 @@
 set -euo pipefail
 
 config="experiments/polygloss_gwb/lora.cfg"
-data_root="/home/kann/data"
+data_root="/users/kann/data"
 glottocode=gawa1247
 
 conditions=(no_translation gls_en gls_ur lit_en gtr_en)

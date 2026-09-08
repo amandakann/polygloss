@@ -20,5 +20,4 @@ data/raw/*
 data/raw/
 
 # model files
-experiments/*/*/*.model
-
+experiments/**/*.model
