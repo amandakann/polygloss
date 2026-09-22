@@ -16,6 +16,101 @@ from .alignment_score import alignment_score
 
 logger = logging.getLogger(__name__)
 
+UNK_GLOSSES = frozenset({"UNK", glossing.IGT.UNK_TOKEN})
+"""Gold gloss tokens marking a morpheme the annotator could not gloss, 
+excluded from the glossing metrics. Segmentation scoring is unaffected.
+"""
+
+
+def _rejoin(word: str, morphemes: list[str], keep: list[int]) -> str:
+    """Reassembles the kept morphemes of a word, preserving its boundary characters."""
+    dividers = re.findall(boundary_pattern, word) + [""]
+    return "".join(
+        morphemes[j] + (dividers[j] if k < len(keep) - 1 else "")
+        for k, j in enumerate(keep)
+    )
+
+
+def _drop_unk_words(predicted: str, reference: str) -> tuple[str, str]:
+    """Drops each word whose reference gloss contains an UNK morpheme, from both sides.
+    Used for the word-level metrics.
+    """
+    predicted_words = predicted.split()
+    reference_words = reference.split()
+    keep = [
+        i
+        for i, word in enumerate(reference_words)
+        if not UNK_GLOSSES.intersection(re.split(boundary_pattern, word))
+    ]
+    return (
+        " ".join(predicted_words[i] for i in keep if i < len(predicted_words)),
+        " ".join(reference_words[i] for i in keep),
+    )
+
+
+def _drop_unk_morphemes(predicted: str, reference: str) -> tuple[str, str]:
+    """Drops UNK reference morphemes, and the predicted morphemes in the same positions,
+    keeping the rest of the word.
+    Used for the morpheme-level metrics.
+    """
+    predicted_words = predicted.split()
+    reference_words = reference.split()
+    out_predicted, out_reference = [], []
+    for i, reference_word in enumerate(reference_words):
+        morphemes = re.split(boundary_pattern, reference_word)
+        keep = [j for j, m in enumerate(morphemes) if m not in UNK_GLOSSES]
+        if not keep:
+            # Every morpheme was UNK, so the word drops out entirely
+            continue
+        out_reference.append(_rejoin(reference_word, morphemes, keep))
+        if i < len(predicted_words):
+            predicted_morphemes = re.split(boundary_pattern, predicted_words[i])
+            out_predicted.append(
+                _rejoin(
+                    predicted_words[i],
+                    predicted_morphemes,
+                    [j for j in keep if j < len(predicted_morphemes)],
+                )
+            )
+    return " ".join(out_predicted), " ".join(out_reference)
+
+
+def _evaluate_glosses(gloss_predictions: pd.DataFrame) -> dict[str, Any]:
+    """Computes glossing metrics, excluding reference tokens the annotator marked UNK.
+
+    The word and morpheme levels need different filtering - a word with one unknown morpheme
+    can't be scored as a word, but its other morphemes still can - so each level is computed
+    over its own filtered view.
+    """
+    predicted = gloss_predictions["predicted"].tolist()
+    reference = gloss_predictions["reference"].tolist()
+
+    views = {
+        "words": [_drop_unk_words(p, r) for p, r in zip(predicted, reference)],
+        "morphemes": [_drop_unk_morphemes(p, r) for p, r in zip(predicted, reference)],
+    }
+
+    metrics: dict[str, Any] = {}
+    for level, view in views.items():
+        # An entirely-UNK reference leaves nothing to score, and the library rejects it
+        scoreable = [(p, r) for p, r in view if r.strip()]
+        if len(scoreable) < len(view):
+            logger.warning(
+                f"Excluded {len(view) - len(scoreable)}/{len(view)} rows from the {level} "
+                f"metrics: every reference token was UNK"
+            )
+        if not scoreable:
+            logger.error(f"No reference tokens remain for the {level} metrics")
+            continue
+        generations, references = (list(side) for side in zip(*scoreable))
+        level_metrics = glossing.evaluate_glosses(generations, references)
+        metrics[level] = level_metrics[level]
+        if level == "morphemes":
+            # Character error rate follows the morpheme view, which keeps the glossed parts
+            # of partially unknown words and preserves their boundary characters
+            metrics["characters"] = level_metrics["characters"]
+    return metrics
+
 
 def evaluate(predictions: pd.DataFrame) -> dict[str, Any]:
     """Evaluate predictions using appropriate metrics for glossing/segmentation.
@@ -88,10 +183,8 @@ def _evaluate(predictions: pd.DataFrame):
     metrics: dict[str, dict | float] = {}
 
     if len(gloss_predictions) > 0:
-        generations = gloss_predictions["predicted"].tolist()
-        references = gloss_predictions["reference"].tolist()
-        assert all_not_none(references)
-        metrics["glossing"] = glossing.evaluate_glosses(generations, references)
+        assert all_not_none(gloss_predictions["reference"].tolist())
+        metrics["glossing"] = _evaluate_glosses(gloss_predictions)
 
     if len(segmentation_predictions) > 0:
         # Average metrics over examples
